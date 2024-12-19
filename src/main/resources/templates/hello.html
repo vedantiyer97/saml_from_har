@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Thymeleaf Form with Action</title>
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      height: 100%;
+      display: flex;
+      flex-direction: row; /* Arrange elements in a row */
+      justify-content: space-between; /* Spacing between elements */
+      padding: 20px;
+    }
+
+    #formSection {
+      width: 50%; /* Occupy 50% of the viewport width */
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start; /* Align form elements to the left */
+    }
+
+    #inputLabel {
+      font-size: 24px; /* Larger font size for the label */
+      margin-bottom: 10px; /* Add space below the label */
+    }
+
+    #inputField {
+      width: 100%; /* Occupy full width of the form section */
+      height: 400px;
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+
+    #submitButton {
+      width: 200px; /* Adjust button width as needed */
+      height: 50px; /* Adjust button height as needed */
+      font-size: 20px; /* Adjust button font size as needed */
+    }
+
+    #responseSection {
+      width: 50%; /* Occupy 50% of the viewport width */
+      padding-left: 20px; /* Add space between form and response */
+      font-size: 36px;
+    }
+  </style>
+  <script type="text/javascript">
+    function handleSubmit() {
+      // JavaScript code to handle form submission
+      var inputFieldValue = document.getElementById('inputField').value;
+
+      // Create an object to hold the data to be sent in the request body
+      var requestData = {
+        inputField: inputFieldValue
+      };
+
+      // Making a POST request using Fetch API
+      fetch('/sendSaml', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json' // Specify content type as JSON
+        },
+        body: JSON.stringify(requestData) // Convert data to JSON string
+      })
+              .then(response => response.text())
+              .then(data => {
+                document.getElementById('responseSection').innerText = data;
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while submitting the form!');
+              });
+
+      // Prevent the default form submission
+      return false;
+    }
+  </script>
+</head>
+<body>
+
+<div class="container">
+  <div id="formSection">
+    <label id="inputLabel" for="inputField">Input:</label>
+    <br>
+    <textarea id="inputField" name="inputField" required></textarea>
+    <br>
+    <button id="submitButton" type="submit" onclick="handleSubmit()">Submit</button>
+  </div>
+  <div id="responseSection"></div>
+</div>
+
+</body>
+</html>
