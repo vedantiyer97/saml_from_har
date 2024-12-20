@@ -27,25 +27,34 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.stereotype.Service;
 
+@Service
 public class RestImpl {
-    private static final Logger logger = LoggerFactory.getLogger(RestImpl.class);
-    private static final Base64 base64Decoder = new Base64();
-    private static final String SAML_RESPONSE_PREFIX = "SAMLResponse=";
+    private final Logger logger = LoggerFactory.getLogger(RestImpl.class);
+    private final Base64 base64Decoder;
+    private final UnmarshallerFactory unmarshallerFactory;
+    private final BasicParserPool parserPool;
     
+    private static final String SAML_RESPONSE_PREFIX = "SAMLResponse=";
     private static final String UAT_LOGIN_URL = "https://login-uat.fisglobal.com/idp/MemoCBAUAT/";
     private static final String PROD_LOGIN_URL = "https://login10.fisglobal.com/idp/CBA/";
 
-    static {
+    public RestImpl() {
+        this.base64Decoder = new Base64();
+        this.parserPool = new BasicParserPool();
+        this.parserPool.setNamespaceAware(true);
+        
         try {
             DefaultBootstrap.bootstrap();
+            this.unmarshallerFactory = Configuration.getUnmarshallerFactory();
         } catch (ConfigurationException e) {
             logger.error("Failed to initialize OpenSAML library", e);
             throw new SamlDecoderException("Failed to initialize OpenSAML library", e);
         }
     }
 
-    public static String response(String requestBody) {
+    public String response(String requestBody) {
         logger.debug("Processing SAML response from request body");
         validateInput(requestBody);
         
@@ -56,13 +65,13 @@ public class RestImpl {
         return attributes.toString();
     }
 
-    private static void validateInput(String input) {
+    private void validateInput(String input) {
         if (input == null || input.trim().isEmpty()) {
             throw new SamlDecoderException("Input cannot be null or empty");
         }
     }
 
-    private static String convertToRawXML(String input) {
+    private String convertToRawXML(String input) {
         try {
             JSONObject json = new JSONObject(input);
             String samlResponse = json.toMap().get("inputField").toString().trim();
@@ -78,7 +87,7 @@ public class RestImpl {
         }
     }
 
-    public static Map<String, String> extractSamlAttributes(String xml) {
+    public Map<String, String> extractSamlAttributes(String xml) {
         validateInput(xml);
         
         try {
@@ -90,17 +99,13 @@ public class RestImpl {
         }
     }
 
-    private static Response parseSamlResponse(String xml) throws Exception {
-        BasicParserPool parserPool = new BasicParserPool();
-        parserPool.setNamespaceAware(true);
-        
+    private Response parseSamlResponse(String xml) throws Exception {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(
                 xml.getBytes(StandardCharsets.UTF_8))) {
             
             Document document = parserPool.parse(inputStream);
             Element element = document.getDocumentElement();
             
-            UnmarshallerFactory unmarshallerFactory = Configuration.getUnmarshallerFactory();
             ResponseUnmarshaller unmarshaller = (ResponseUnmarshaller) 
                 unmarshallerFactory.getUnmarshaller(element);
             
@@ -108,7 +113,7 @@ public class RestImpl {
         }
     }
 
-    private static Map<String, String> extractAttributesFromResponse(Response samlResponse) {
+    private Map<String, String> extractAttributesFromResponse(Response samlResponse) {
         Map<String, String> attributes = new HashMap<>();
         
         for (Assertion assertion : samlResponse.getAssertions()) {
@@ -125,7 +130,7 @@ public class RestImpl {
         return attributes;
     }
 
-    public static String processHarFile(MultipartFile file) {
+    public String processHarFile(MultipartFile file) {
         logger.info("Processing HAR file: {}", file.getOriginalFilename());
         validateHarFile(file);
         
@@ -136,7 +141,7 @@ public class RestImpl {
         return attributes.toString();
     }
 
-    private static void validateHarFile(MultipartFile file) {
+    private void validateHarFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new SamlDecoderException("Please select a valid HAR file to upload");
         }
@@ -145,13 +150,13 @@ public class RestImpl {
         }
     }
 
-    private static String extractSamlResponseFromHar(MultipartFile file) {
+    private String extractSamlResponseFromHar(MultipartFile file) {
         try {
             File tempFile = createTempHarFile(file);
             Har har = new HarReader().readFromFile(tempFile);
             
             return har.getLog().getEntries().stream()
-                .filter(RestImpl::isSamlLoginRequest)
+                .filter(this::isSamlLoginRequest)
                 .filter(entry -> entry.getRequest().getPostData().getText()
                     .startsWith(SAML_RESPONSE_PREFIX))
                 .map(entry -> decodeSamlResponse(entry.getRequest().getPostData().getText()))
@@ -164,20 +169,20 @@ public class RestImpl {
         }
     }
 
-    private static File createTempHarFile(MultipartFile file) throws IOException {
+    private File createTempHarFile(MultipartFile file) throws IOException {
         File tempFile = File.createTempFile("saml_", ".har");
         file.transferTo(tempFile);
         tempFile.deleteOnExit();
         return tempFile;
     }
 
-    private static boolean isSamlLoginRequest(HarEntry entry) {
+    private boolean isSamlLoginRequest(HarEntry entry) {
         String url = entry.getRequest().getUrl();
         return (url.startsWith(UAT_LOGIN_URL) || url.startsWith(PROD_LOGIN_URL)) &&
                entry.getRequest().getMethod().equals(HttpMethod.POST);
     }
 
-    private static String decodeSamlResponse(String postData) {
+    private String decodeSamlResponse(String postData) {
         try {
             String samlResponse = postData.substring(SAML_RESPONSE_PREFIX.length());
             samlResponse = URLDecoder.decode(samlResponse, StandardCharsets.UTF_8.name());

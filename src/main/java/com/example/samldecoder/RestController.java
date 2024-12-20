@@ -9,14 +9,20 @@ import org.springframework.web.multipart.MultipartFile;
 
 @org.springframework.web.bind.annotation.RestController
 public class RestController {
+    private final RestImpl restImpl;
+
+    public RestController(RestImpl restImpl) {
+        this.restImpl = restImpl;
+    }
+
     @PostMapping("/sendSaml")
     public String sendResponse(@RequestBody String Request) {
-        return RestImpl.response(Request);
+        return restImpl.response(Request);
     }
 
     @PostMapping("/sendFile")
     public String handleFileUpload(@RequestParam("file") MultipartFile file) {
-        return RestImpl.processHarFile(file);
+        return restImpl.processHarFile(file);
     }
 
 }
