@@ -4,9 +4,12 @@ FROM openjdk:17-jdk-alpine
 # Set working directory in container
 WORKDIR /app
 
-# Copy the Maven wrapper files
+# Add basic packages and set executable permission
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
+RUN apk add --no-cache curl bash && \
+    chmod +x mvnw && \
+    dos2unix mvnw
 
 # Download dependencies (this layer will be cached if pom.xml doesn't change)
 RUN ./mvnw dependency:go-offline
@@ -15,7 +18,7 @@ RUN ./mvnw dependency:go-offline
 COPY src ./src
 
 # Build the application
-RUN ./mvnw package -DskipTests
+RUN ./mvnw clean install -DskipTests
 
 # Use a smaller runtime image
 FROM eclipse-temurin:17-jre-jammy
